@@ -41,12 +41,22 @@ import os, sys, json, argparse
 from hashlib import scrypt
 from uuid import uuid4
 from getpass import getpass as _getpass
+from collections import Counter as Histogram
+from math import log
 from Crypto.Cipher import AES
 from Crypto.Util import Counter
 from sha3 import keccak_256
 from ecdsa import SigningKey, SECP256k1
 
 err = sys.stderr
+
+import collections
+
+def entropy(data):
+    n = len(data)
+    return sum([-p * log(p, 2) for p in
+                [c / n for _,c in Histogram(data).items()]])
+
 def getpass():
     passwd = _getpass('Enter your wallet password (utf-8): ')
     rpasswd = _getpass('Repeat the password: ')
@@ -120,7 +130,11 @@ if __name__ == '__main__':
         r = 8
         p = 1
         passwd = getpass()
-        err.write("your plain-text password has {} bytes\n".format(len(passwd)))
+        pwd_len = len(passwd)
+        pwd_ent = entropy(passwd)
+        err.write("pass length = {} bytes\n"
+                "pass entropy = {}, {:.2f}%\n".format(
+                    pwd_len, pwd_ent, pwd_ent / log(pwd_len, 2) * 100))
         enc_pk, mac = encrypt(passwd=passwd,
                             iv=iv, priv_key=priv_key, salt=salt, n=n, r=r, p=p, dklen=32)
         addr = generate_addr(pub_key)
