@@ -58,6 +58,9 @@ def entropy(data):
                 [c / n for _,c in Histogram(data).items()]])
 
 def getpass():
+    return _getpass().encode('utf-8')
+
+def getpass2():
     passwd = _getpass('Enter your wallet password (utf-8): ')
     rpasswd = _getpass('Repeat the password: ')
     if passwd != rpasswd:
@@ -113,15 +116,33 @@ if __name__ == '__main__':
     parser.add_argument('--verify-key', action='store_true', default=False)
     parser.add_argument('--show-key', action='store_true', default=False)
     parser.add_argument('--use-new-iv', action='store_true', default=False)
-    parser.add_argument('--force', action='store_true', default=False)
     parser.add_argument('--gen', action='store_true', default=False, help='generate a new wallet')
+    parser.add_argument('--with-key', action='store_true', default=False, help='use the specified key')
     parser.add_argument('--light', action='store_true', default=False, help='use n = 4096 for --gen')
+    parser.add_argument('--force', action='store_true', default=False, help='bypass the password check')
 
     args = parser.parse_args()
 
     if args.gen:
-        sk = SigningKey.generate(curve=SECP256k1)
-        priv_key = sk.to_string()
+        if args.with_key:
+            hex_key = input('Please enter the private key (hex): ')
+            if len(hex_key) == 66:
+                hex_prefix = hex_key[:2]
+                if hex_prefix == '0x' or hex_prefix == '0X':
+                    hex_key = hex_key[2:]
+            if len(hex_key) != 64:
+                err.write("invalid private key hex length\n")
+                sys.exit(1)
+            try:
+                priv_key = bytes.fromhex(hex_key)
+            except ValueError:
+                err.write("not a valid hex key\n")
+                sys.exit(1)
+            sk = SigningKey.from_string(priv_key, curve=SECP256k1)
+        else:
+            sk = SigningKey.generate(curve=SECP256k1)
+            priv_key = sk.to_string()
+
         pub_key = sk.get_verifying_key().to_string()
 
         iv = os.urandom(16)
@@ -129,7 +150,7 @@ if __name__ == '__main__':
         n = 1 << (12 if args.light else 18)
         r = 8
         p = 1
-        passwd = getpass()
+        passwd = getpass2()
         pwd_len = len(passwd)
         pwd_ent = entropy(passwd)
         err.write("pass length = {} bytes\n"
