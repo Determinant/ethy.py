@@ -1,5 +1,5 @@
-eth.py
-------
+ethy.py
+-------
 
 This little script offers decryption and verification of some existing
 Ethereum wallets, as well as generation of a new wallet. You can use any
@@ -12,7 +12,7 @@ Feature
 -------
 
 - Decrypt the UTC JSON wallet and see the private key
-- Run secp256k1 to make sure the private is intact and really corresponds to the wallet address
+- Run secp256k1 to make sure the private key is intact and really corresponds to the wallet address
 - Generate a wallet
 
 Dependencies
@@ -27,7 +27,7 @@ Install
 ::
 
     git clone https://github.com/Determinant/ethy.py
-    pip install --user ethy.py
+    pip install --user ethy.py/
 
 Example
 -------
