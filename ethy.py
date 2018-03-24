@@ -22,7 +22,7 @@
 # SOFTWARE.
 #
 #
-# This little script offers decryption and verification of some existing
+# This little script offers decryption and verification of the existing
 # Ethereum wallets, as well as generation of a new wallet. You can use any
 # utf-8 string as the password, which could provide with better security
 # against the brute-force attack.
