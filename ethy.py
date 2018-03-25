@@ -148,9 +148,13 @@ if __name__ == '__main__':
 
         iv = os.urandom(16)
         salt = os.urandom(16)
-        n = 1 << (12 if args.light else 18)
+        if args.light:
+            n = 1 << 12
+            p = 6
+        else:
+            n = 1 << 18
+            p = 1
         r = 8
-        p = 1
         passwd = getpass2()
         pwd_len = len(passwd)
         pwd_ent = entropy(passwd)
