@@ -125,7 +125,8 @@ if __name__ == '__main__':
 
     if args.gen:
         if args.with_key:
-            hex_key = input('Please enter the private key (hex): ')
+            err.write('Please enter the private key (hex): ')
+            hex_key = input().strip()
             if len(hex_key) == 66:
                 hex_prefix = hex_key[:2]
                 if hex_prefix == '0x' or hex_prefix == '0X':
