@@ -24,14 +24,16 @@ Dependencies
 
 Install
 -------
-::
+
+.. code-block:: bash
 
     git clone https://github.com/Determinant/ethy.py
     pip install --user ethy.py/
 
 Example
 -------
-::
+
+.. code-block:: bash
 
     python ./ethy.py --verify-key mywallet.json # unlock the wallet and verify whether the
                                                 # encrypted private key matches the address
