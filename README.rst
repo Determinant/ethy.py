@@ -28,7 +28,7 @@ Install
 .. code-block:: bash
 
     git clone https://github.com/Determinant/ethy.py
-    pip install --user ethy.py/
+    pip3 install --user ethy.py/
 
 Example
 -------
