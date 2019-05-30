@@ -158,6 +158,9 @@ if __name__ == '__main__':
         passwd = getpass2()
         pwd_len = len(passwd)
         pwd_ent = entropy(passwd)
+        if pwd_len < 2:
+            err.write("password is too short!\n")
+            sys.exit(1)
         err.write("pass length = {} bytes\n"
                 "pass entropy = {}, {:.2f}%\n".format(
                     pwd_len, pwd_ent, pwd_ent / log(pwd_len, 2) * 100))
