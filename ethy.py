@@ -117,6 +117,9 @@ def encrypt(passwd=None, salt=None, n=None, r=None, p=None, dklen=None, iv=None,
 def show_entropy(bytes, prompt="pass"):
     pwd_len = len(bytes)
     pwd_ent = entropy(bytes)
+    if pwd_len < 2:
+        err.write("{} is too short!\n".format(prompt))
+        sys.exit(1)
     err.write("{0} length = {1} bytes\n"
             "{0} entropy = {2}, {3:.2f}%\n".format(prompt,
                 pwd_len, pwd_ent, pwd_ent / log(pwd_len, 2) * 100))
