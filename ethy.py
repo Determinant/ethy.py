@@ -47,6 +47,7 @@ from Crypto.Cipher import AES
 from Crypto.Util import Counter
 from sha3 import keccak_256
 from ecdsa import SigningKey, SECP256k1
+from base58 import b58encode
 
 err = sys.stderr
 
@@ -66,6 +67,10 @@ def getpass2():
     if passwd != rpasswd:
         err.write("Mismatching passwords.")
         sys.exit(1)
+    return passwd.encode('utf-8')
+
+def getseed():
+    passwd = _getpass('Enter some arbitrary seed (utf-8): ')
     return passwd.encode('utf-8')
 
 def generate_mac(derived_key, encrypted_private_key):
@@ -109,6 +114,50 @@ def encrypt(passwd=None, salt=None, n=None, r=None, p=None, dklen=None, iv=None,
     mac = generate_mac(dk, enc_pk)
     return enc_pk, mac
 
+def show_entropy(bytes, prompt="pass"):
+    pwd_len = len(bytes)
+    pwd_ent = entropy(bytes)
+    err.write("{0} length = {1} bytes\n"
+            "{0} entropy = {2}, {3:.2f}%\n".format(prompt,
+                pwd_len, pwd_ent, pwd_ent / log(pwd_len, 2) * 100))
+
+def save_to_file(sk, priv_key, passwd, fs):
+    pub_key = sk.get_verifying_key().to_string()
+
+    iv = os.urandom(16)
+    salt = os.urandom(16)
+    if args.light:
+        n = 1 << 12
+        p = 6
+    else:
+        n = 1 << 18
+        p = 1
+    r = 8
+    show_entropy(passwd)
+    enc_pk, mac = encrypt(passwd=passwd,
+                        iv=iv, priv_key=priv_key, salt=salt, n=n, r=r, p=p, dklen=32)
+    addr = generate_addr(pub_key)
+    if args.show_key:
+        err.write("> private key: {}\n".format(priv_key.hex()))
+    err.write("> public key: {}\n".format(pub_key.hex()))
+    err.write("> address: {}\n".format(addr))
+    crypto = {
+            'ciphertext': enc_pk.hex(),
+            'cipherparams': {'iv': iv.hex()},
+            'cipher': 'aes-128-ctr',
+            'kdf': 'scrypt',
+            'kdfparams': {'dklen': 32,
+                          'salt': salt.hex(),
+                          'n': n,
+                          'r': r,
+                          'p': p},
+            'mac': mac.hex() }
+    output = {'version': 3,
+              'id': str(uuid4()),
+              'address': addr,
+              'Crypto': crypto}
+    fs.write(json.dumps(output))
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Decrypt/verify the Ethereum UTC JSON keystore file')
     parser.add_argument('input', metavar='INPUT', type=str, nargs='?',
@@ -117,13 +166,39 @@ if __name__ == '__main__':
     parser.add_argument('--show-key', action='store_true', default=False)
     parser.add_argument('--use-new-iv', action='store_true', default=False)
     parser.add_argument('--gen', action='store_true', default=False, help='generate a new wallet')
+    parser.add_argument('--gen-batch', action='store', default=None, type=int, help='generate some wallets')
     parser.add_argument('--with-key', action='store_true', default=False, help='use the specified key')
     parser.add_argument('--light', action='store_true', default=False, help='use n = 4096 for --gen')
     parser.add_argument('--force', action='store_true', default=False, help='bypass the password check')
 
     args = parser.parse_args()
 
-    if args.gen:
+    if args.gen_batch:
+        if args.gen_batch < 1:
+            err.write("invalid argument")
+            sys.exit(1)
+        seed = getseed()
+        show_entropy(seed, "seed")
+        h = keccak_256()
+        h.update(seed)
+        h2 = keccak_256()
+        h2.update(h.digest())
+        wid = h2.hexdigest()[32:]
+        for i in range(args.gen_batch):
+            h = keccak_256()
+            h.update(seed)
+            h.update("\0".encode("utf-8"))
+            h.update(str(i).encode("utf-8"))
+            password = b58encode(h.digest())
+
+            sk = SigningKey.generate(curve=SECP256k1)
+            priv_key = sk.to_string()
+            wname = "wallet-{}-{:03d}".format(wid, i)
+            f = open("{}.json".format(wname), "w")
+            save_to_file(sk, priv_key, password, f)
+            sys.stdout.write("password({}) = {}\n".format(wname, password.decode("ascii")))
+        sys.exit(0)
+    elif args.gen:
         if args.with_key:
             err.write('Please enter the private key (hex): ')
             hex_key = input().strip()
@@ -143,47 +218,7 @@ if __name__ == '__main__':
         else:
             sk = SigningKey.generate(curve=SECP256k1)
             priv_key = sk.to_string()
-
-        pub_key = sk.get_verifying_key().to_string()
-
-        iv = os.urandom(16)
-        salt = os.urandom(16)
-        if args.light:
-            n = 1 << 12
-            p = 6
-        else:
-            n = 1 << 18
-            p = 1
-        r = 8
-        passwd = getpass2()
-        pwd_len = len(passwd)
-        pwd_ent = entropy(passwd)
-        err.write("pass length = {} bytes\n"
-                "pass entropy = {}, {:.2f}%\n".format(
-                    pwd_len, pwd_ent, pwd_ent / log(pwd_len, 2) * 100))
-        enc_pk, mac = encrypt(passwd=passwd,
-                            iv=iv, priv_key=priv_key, salt=salt, n=n, r=r, p=p, dklen=32)
-        addr = generate_addr(pub_key)
-        if args.show_key:
-            err.write("> private key: {}\n".format(priv_key.hex()))
-        err.write("> public key: {}\n".format(pub_key.hex()))
-        err.write("> address: {}\n".format(addr))
-        crypto = {
-                'ciphertext': enc_pk.hex(),
-                'cipherparams': {'iv': iv.hex()},
-                'cipher': 'aes-128-ctr',
-                'kdf': 'scrypt',
-                'kdfparams': {'dklen': 32,
-                              'salt': salt.hex(),
-                              'n': n,
-                              'r': r,
-                              'p': p},
-                'mac': mac.hex() }
-        output = {'version': 3,
-                  'id': str(uuid4()),
-                  'address': addr,
-                  'Crypto': crypto}
-        sys.stdout.write(json.dumps(output))
+        save_to_file(sk, priv_key, getpass2(), sys.stdout)
         sys.exit(0)
 
     if args.input:

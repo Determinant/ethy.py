@@ -11,5 +11,6 @@ setup(name='ethy.py',
       install_requires=[
           'pycrypto',
           'pysha3',
-          'ecdsa'
+          'ecdsa',
+          'base58'
           ])

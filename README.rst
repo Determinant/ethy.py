@@ -35,10 +35,10 @@ Example
 
 .. code-block:: bash
 
-    python ./ethy.py --verify-key mywallet.json # unlock the wallet and verify whether the
-                                                # encrypted private key matches the address
-    python ./ethy.py --show-key mywallet.json   # reveal the private key (secp256k1)
+    ethy.py --verify-key mywallet.json # unlock the wallet and verify whether the
+                                       # encrypted private key matches the address
+    ethy.py --show-key mywallet.json   # reveal the private key (secp256k1)
 
-    python ./ethy.py --gen > mywallet.json             # generate a regular wallet (1s)
-    python ./ethy.py --gen --light > mywallet.json     # generate a wallet (fast)
-    python ./ethy.py --gen --with-key > mywallet.json  # generate a wallet with the given private key
+    ethy.py --gen > mywallet.json             # generate a regular wallet (1s)
+    ethy.py --gen --light > mywallet.json     # generate a wallet (fast)
+    ethy.py --gen --with-key > mywallet.json  # generate a wallet with the given private key
