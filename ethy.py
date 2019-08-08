@@ -171,6 +171,7 @@ if __name__ == '__main__':
     parser.add_argument('--gen', action='store_true', default=False, help='generate a new wallet')
     parser.add_argument('--gen-batch', action='store', default=None, type=int, help='generate some wallets')
     parser.add_argument('--with-key', action='store_true', default=False, help='use the specified key')
+    parser.add_argument('--pass-stdin', action='store_true', default=False, help='read the password from stdin')
     parser.add_argument('--light', action='store_true', default=False, help='use n = 4096 for --gen')
     parser.add_argument('--force', action='store_true', default=False, help='bypass the password check')
 
@@ -239,7 +240,10 @@ if __name__ == '__main__':
     n = int(kdf['n'])
     r = int(kdf['r'])
     p = int(kdf['p'])
-    passwd = getpass()
+    if args.pass_stdin:
+        passwd = sys.stdin.readline()[:-1].encode('utf-8')
+    else:
+        passwd = getpass()
     
     priv_key, mac = decrypt(passwd=passwd, iv=iv, enc_pk=enc_pk, salt=salt, n=n, r=r, p=p, dklen=dklen)
 
