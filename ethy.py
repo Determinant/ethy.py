@@ -248,25 +248,25 @@ if __name__ == '__main__':
     priv_key, mac = decrypt(passwd=passwd, iv=iv, enc_pk=enc_pk, salt=salt, n=n, r=r, p=p, dklen=dklen)
 
     if c['mac'] == mac.hex():
-        print("-- password is correct --")
+        err.write("-- password is correct --\n")
     else:
-        print("!! possibly WRONG password !!")
+        err.write("!! possibly WRONG password !!\n")
         if not args.force: sys.exit(1)
 
     if args.show_key:
-        print("> private key: {}".format(priv_key.hex()))
+        err.write("> private key: {}\n".format(priv_key.hex()))
     
     if args.verify_key:
         # derive public key and address from the decrypted private key
         sk = SigningKey.from_string(priv_key, curve=SECP256k1)
         pub_key = sk.get_verifying_key().to_string()
-        print("> public key: {}".format(pub_key.hex()))
+        err.write("> public key: {}\n".format(pub_key.hex()))
         addr = generate_addr(pub_key)
-        print("> address: {}".format(addr))
+        err.write("> address: {}\n".format(addr))
         if parsed['address'] == addr:
-            print("-- private key matches address --")
+            err.write("-- private key matches address --\n")
         else:
-            print("!! private key does NOT match the address !!")
+            err.write("!! private key does NOT match the address !!\n")
             if not args.force: sys.exit(1)
     
     # generate a new encrypted wallet
