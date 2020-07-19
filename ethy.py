@@ -37,8 +37,11 @@
 # python ./ethy.py --gen > mywallet.json         # generate a regular wallet (1s)
 # python ./ethy.py --gen --light > mywallet.json # generate a wallet (fast)
 
-import os, sys, json, argparse
-from hashlib import scrypt
+import os
+import sys
+import json
+import argparse
+import hashlib
 from uuid import uuid4
 from getpass import getpass as _getpass
 from collections import Counter as Histogram
@@ -51,15 +54,16 @@ from base58 import b58encode
 
 err = sys.stderr
 
-import collections
 
 def entropy(data):
     n = len(data)
     return sum([-p * log(p, 2) for p in
-                [c / n for _,c in Histogram(data).items()]])
+                [c / n for _, c in Histogram(data).items()]])
+
 
 def getpass():
     return _getpass().encode('utf-8')
+
 
 def getpass2():
     passwd = _getpass('Enter your wallet password (utf-8): ')
@@ -69,9 +73,11 @@ def getpass2():
         sys.exit(1)
     return passwd.encode('utf-8')
 
+
 def getseed():
     passwd = _getpass('Enter some arbitrary seed (utf-8): ')
     return passwd.encode('utf-8')
+
 
 def generate_mac(derived_key, encrypted_private_key):
     m = keccak_256()
@@ -79,40 +85,95 @@ def generate_mac(derived_key, encrypted_private_key):
     m.update(encrypted_private_key)
     return m.digest()
 
-def generate_addr(pub_key):
-    m = keccak_256()
-    m.update(pub_key)
-    return m.hexdigest()[24:]
 
-def decrypt(passwd=None, salt=None, n=None, r=None, p=None, dklen=None, iv=None, enc_pk=None):
+def sha256(data):
+    h = hashlib.sha256()
+    h.update(data)
+    return h.digest()
+
+
+def ripemd160(data):
+    h = hashlib.new('ripemd160')
+    h.update(data)
+    return h.digest()
+
+
+class KeyGen:
+    @classmethod
+    def generate(cls):
+        kg = KeyGen()
+        kg.sk = SigningKey.generate(curve=SECP256k1)
+        kg.pk = kg.sk.get_verifying_key()
+        return kg
+
+    @classmethod
+    def from_string(cls, priv_key):
+        kg = KeyGen()
+        kg.sk = SigningKey.from_string(priv_key, curve=SECP256k1)
+        kg.pk = kg.sk.get_verifying_key()
+        return kg
+
+    def get_pubkey_hex(self):
+        return self.pk.to_string().hex()
+
+    def get_privkey(self):
+        return self.sk.to_string()
+
+    def get_privkey_hex(self):
+        return self.get_privkey().hex()
+
+    def get_privkey_btc(self):
+        priv_key = b'\x80' + self.sk.to_string()
+        checksum = sha256(sha256(priv_key))[:4]
+        return b58encode(priv_key + checksum).decode("utf-8")
+
+    def get_eth_addr(self):
+        pub_key = self.pk.to_string()
+        m = keccak_256()
+        m.update(pub_key)
+        return m.hexdigest()[24:]
+
+    def get_btc_addr(self):
+        pub_key = b'\x04' + self.pk.to_string()
+        h = b'\x00' + ripemd160(sha256(pub_key))
+        checksum = sha256(sha256(h))[:4]
+        h += checksum
+        return b58encode(h).decode("utf-8")
+
+
+def decrypt(passwd=None, salt=None,
+            n=None, r=None, p=None, dklen=None, iv=None, enc_pk=None):
     # decrypt the ase-128-ctr to have the secp256k1 private key
     #   use scrypt for key derivation
     m = 128 * r * (n + p + 2)
-    dk = scrypt(passwd, salt=salt, n=n, r=r, p=p, dklen=dklen, maxmem=m)
+    dk = hashlib.scrypt(passwd, salt=salt,
+                        n=n, r=r, p=p, dklen=dklen, maxmem=m)
     obj = AES.new(dk[:dklen >> 1],
-                    mode=AES.MODE_CTR,
-                    counter=Counter.new(128,
-                                        initial_value=int.from_bytes(iv, 'big')))
+                  mode=AES.MODE_CTR,
+                  counter=Counter.new(128,
+                                      initial_value=int.from_bytes(iv, 'big')))
     priv_key = obj.decrypt(enc_pk)
-    
     # generate the mac
     mac = generate_mac(dk, enc_pk)
     return priv_key, mac
 
-def encrypt(passwd=None, salt=None, n=None, r=None, p=None, dklen=None, iv=None, priv_key=None):
+
+def encrypt(passwd=None, salt=None,
+            n=None, r=None, p=None, dklen=None, iv=None, priv_key=None):
     # decrypt the ase-128-ctr to have the secp256k1 private key
     #   use scrypt for key derivation
     m = 128 * r * (n + p + 2)
-    dk = scrypt(passwd, salt=salt, n=n, r=r, p=p, dklen=dklen, maxmem=m)
+    dk = hashlib.scrypt(passwd, salt=salt,
+                        n=n, r=r, p=p, dklen=dklen, maxmem=m)
     obj = AES.new(dk[:dklen >> 1],
-                    mode=AES.MODE_CTR,
-                    counter=Counter.new(128,
-                                        initial_value=int.from_bytes(iv, 'big')))
+                  mode=AES.MODE_CTR,
+                  counter=Counter.new(128,
+                                      initial_value=int.from_bytes(iv, 'big')))
     enc_pk = obj.encrypt(priv_key)
-    
     # generate the mac
     mac = generate_mac(dk, enc_pk)
     return enc_pk, mac
+
 
 def show_entropy(bytes, prompt="pass"):
     pwd_len = len(bytes)
@@ -121,12 +182,12 @@ def show_entropy(bytes, prompt="pass"):
         err.write("{} is too short!\n".format(prompt))
         sys.exit(1)
     err.write("{0} length = {1} bytes\n"
-            "{0} entropy = {2}, {3:.2f}%\n".format(prompt,
-                pwd_len, pwd_ent, pwd_ent / log(pwd_len, 2) * 100))
+              "{0} entropy = {2}, {3:.2f}%\n".format(
+                    prompt,
+                    pwd_len, pwd_ent, pwd_ent / log(pwd_len, 2) * 100))
 
-def save_to_file(sk, priv_key, passwd, fs):
-    pub_key = sk.get_verifying_key().to_string()
 
+def save_to_file(kg, passwd, fs):
     iv = os.urandom(16)
     salt = os.urandom(16)
     if args.light:
@@ -137,13 +198,17 @@ def save_to_file(sk, priv_key, passwd, fs):
         p = 1
     r = 8
     show_entropy(passwd)
-    enc_pk, mac = encrypt(passwd=passwd,
-                        iv=iv, priv_key=priv_key, salt=salt, n=n, r=r, p=p, dklen=32)
-    addr = generate_addr(pub_key)
+    enc_pk, mac = encrypt(
+            passwd=passwd,
+            iv=iv, priv_key=kg.get_privkey(), salt=salt,
+            n=n, r=r, p=p, dklen=32)
+    addr = kg.get_eth_addr()
     if args.show_key:
-        err.write("> private key: {}\n".format(priv_key.hex()))
-    err.write("> public key: {}\n".format(pub_key.hex()))
+        err.write("> private key: {}\n".format(kg.get_privkey_hex()))
+        err.write("> private key (btc): {}\n".format(kg.get_privkey_btc()))
+    err.write("> public key: {}\n".format(kg.get_pubkey_hex()))
     err.write("> address: {}\n".format(addr))
+    err.write("> address (btc): {}\n".format(kg.get_btc_addr()))
     crypto = {
             'ciphertext': enc_pk.hex(),
             'cipherparams': {'iv': iv.hex()},
@@ -154,12 +219,13 @@ def save_to_file(sk, priv_key, passwd, fs):
                           'n': n,
                           'r': r,
                           'p': p},
-            'mac': mac.hex() }
+            'mac': mac.hex()}
     output = {'version': 3,
               'id': str(uuid4()),
               'address': addr,
               'Crypto': crypto}
-    fs.write(json.dumps(output))
+    sys.stdout.write("{}\n".format(json.dumps(output)))
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Decrypt/verify the Ethereum UTC JSON keystore file')
@@ -195,12 +261,12 @@ if __name__ == '__main__':
             h.update(str(i).encode("utf-8"))
             password = b58encode(h.digest())
 
-            sk = SigningKey.generate(curve=SECP256k1)
-            priv_key = sk.to_string()
+            kg = KeyGen.generate()
             wname = "wallet-{}-{:03d}".format(wid, i)
             f = open("{}.json".format(wname), "w")
-            save_to_file(sk, priv_key, password, f)
-            sys.stdout.write("password({}) = {}\n".format(wname, password.decode("ascii")))
+            save_to_file(kg, password, f)
+            sys.stdout.write("password({}) = {}\n".format(
+                wname, password.decode("ascii")))
         sys.exit(0)
     elif args.gen:
         if args.with_key:
@@ -218,11 +284,10 @@ if __name__ == '__main__':
             except ValueError:
                 err.write("not a valid hex key\n")
                 sys.exit(1)
-            sk = SigningKey.from_string(priv_key, curve=SECP256k1)
+            kg = KeyGen.from_string(priv_key)
         else:
-            sk = SigningKey.generate(curve=SECP256k1)
-            priv_key = sk.to_string()
-        save_to_file(sk, priv_key, getpass2(), sys.stdout)
+            kg = KeyGen.generate()
+        save_to_file(kg, getpass2(), sys.stdout)
         sys.exit(0)
 
     if args.input:
@@ -244,39 +309,42 @@ if __name__ == '__main__':
         passwd = sys.stdin.readline()[:-1].encode('utf-8')
     else:
         passwd = getpass()
-    
-    priv_key, mac = decrypt(passwd=passwd, iv=iv, enc_pk=enc_pk, salt=salt, n=n, r=r, p=p, dklen=dklen)
+    priv_key, mac = decrypt(passwd=passwd, iv=iv, enc_pk=enc_pk, salt=salt,
+                            n=n, r=r, p=p, dklen=dklen)
 
     if c['mac'] == mac.hex():
         err.write("-- password is correct --\n")
     else:
         err.write("!! possibly WRONG password !!\n")
-        if not args.force: sys.exit(1)
+        if not args.force:
+            sys.exit(1)
 
     if args.show_key:
-        err.write("> private key: {}\n".format(priv_key.hex()))
-    
+        kg = KeyGen.from_string(priv_key)
+        err.write("> private key: {}\n".format(kg.get_privkey_hex()))
+        err.write("> private key (btc): {}\n".format(kg.get_privkey_btc()))
     if args.verify_key:
         # derive public key and address from the decrypted private key
-        sk = SigningKey.from_string(priv_key, curve=SECP256k1)
-        pub_key = sk.get_verifying_key().to_string()
-        err.write("> public key: {}\n".format(pub_key.hex()))
-        addr = generate_addr(pub_key)
+        kg = KeyGen.from_string(priv_key)
+        err.write("> public key: {}\n".format(kg.get_pubkey_hex()))
+        addr = kg.get_eth_addr()
         err.write("> address: {}\n".format(addr))
+        err.write("> address (btc): {}\n".format(kg.get_btc_addr()))
         if parsed['address'] == addr:
             err.write("-- private key matches address --\n")
         else:
             err.write("!! private key does NOT match the address !!\n")
-            if not args.force: sys.exit(1)
-    
+            if not args.force:
+                sys.exit(1)
     # generate a new encrypted wallet
     if args.use_new_iv:
         iv = os.urandom(16)
-    enc_pk2, mac2 = encrypt(passwd=passwd, iv=iv, priv_key=priv_key, salt=salt, n=n, r=r, p=p, dklen=32)
+    enc_pk2, mac2 = encrypt(
+            passwd=passwd, iv=iv, priv_key=priv_key, salt=salt,
+            n=n, r=r, p=p, dklen=32)
     parsed['id'] = str(uuid4())
     c['ciphertext'] = enc_pk2.hex()
     c['cipherparams']['iv'] = iv.hex()
     kdf['dklen'] = 32
     c['mac'] = mac2.hex()
-    
-    print(json.dumps(parsed))
+    sys.stdout.write("{}\n".format(json.dumps(parsed)))
