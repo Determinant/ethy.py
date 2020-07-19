@@ -1,8 +1,8 @@
 from setuptools import setup
 
 setup(name='ethy.py',
-      version='0.1',
-      description='Decryption/verification/generation of Ethereum wallets',
+      version='0.2',
+      description='Decryption/verification/generation of Ethereum/BTC wallets',
       url='http://github.com/Determinant/ethy.py',
       author='Ted Yin',
       author_email='tederminant@gmail.com',
